@@ -1,38 +1,12 @@
 version 1.0
 
-workflow TREE_VISUALIZATION {
-  input {
-    Array[File] input_trees
-    Int width = 1000
-    String? image_format = "png"
-    Int font_size = 12
-  }
-
-  scatter (tree in input_trees) {
-    call VALIDATE_AND_RENDER {
-      input:
-        input_tree = tree,
-        width = width,
-        image_format = select_first([image_format, "png"]),
-        font_size = font_size
-    }
-  }
-
-  output {
-    Array[File?] rendered_images = VALIDATE_AND_RENDER.final_image
-    Array[File] render_logs = VALIDATE_AND_RENDER.render_log
-  }
-}
-
 task VALIDATE_AND_RENDER {
   input {
     File input_tree
-    Int width
-    String image_format
-    Int font_size
-    
-    # Add continueOnReturnCode to handle potential non-zero exit codes
-    Int? continueOnReturnCode = 1
+    Int width = 1200
+    String image_format = "png"
+    Int font_size = 8
+    Boolean show_scale = true
   }
 
   command <<<
@@ -54,40 +28,53 @@ task VALIDATE_AND_RENDER {
 import os
 import sys
 import traceback
-from ete3 import Tree, TreeStyle, TextFace
+from ete3 import Tree, TreeStyle, TextFace, NodeStyle
 
 def main():
     try:
         print("[DEBUG] Starting tree rendering")
         input_path = "/tmp/inputs/input.nwk"
-        output_path = f"/tmp/outputs/tree.png"  # Simplified output path
+        output_path = "/tmp/outputs/tree.png"
         
         if not os.path.exists(input_path):
             raise FileNotFoundError(f"Input file missing: {input_path}")
             
-        t = Tree(input_path)
+        t = Tree(input_path, format=1)
         print(f"[SUCCESS] Loaded tree with {len(t)} leaves")
         
         ts = TreeStyle()
-        ts.show_scale = False
-        ts.mode = "r"  # Rectangular mode
-        ts.rotation = 0  # Standard left-to-right orientation
-        ts.branch_vertical_margin = 15  # Space between branches
-        ts.show_leaf_name = False  # We'll add them manually to control font size
+        ts.show_scale = ~{true="True" false="False" show_scale}
+        ts.scale_length = 0.1
+        ts.mode = "r"
+        ts.rotation = 0
+        ts.branch_vertical_margin = 15
+        ts.show_leaf_name = True
         ts.min_leaf_separation = 5
-        ts.allow_face_overlap = False
+        ts.allow_face_overlap = True
         ts.complete_branch_lines_when_necessary = True
-        ts.root_opening_factor = 0.5  # Controls root spread
-        ts.margin_left = 50  # Left margin
-        ts.margin_right = 50  # Right margin
-        ts.margin_top = 50  # Top margin
-        ts.margin_bottom = 50  # Bottom margin
+        ts.root_opening_factor = 0.5
+        ts.margin_left = 50
+        ts.margin_right = 50
+        ts.margin_top = 50
+        ts.margin_bottom = 50
 
-        # Add leaf names with controlled font size
-        for leaf in t.iter_leaves():
-            face = TextFace(leaf.name, fsize=~{font_size})
-            leaf.add_face(face, column=0, position="branch-right")
-        
+        for node in t.traverse():
+            if not node.is_leaf():
+                ns = NodeStyle()
+                ns["size"] = 0
+                if hasattr(node, 'support'):
+                    support_value = node.support
+                    if support_value is not None:
+                        support_text = f"{support_value:.0%}"
+                        support_face = TextFace(support_text, 
+                                             fsize=~{font_size}, 
+                                             fgcolor="black",
+                                             bold=True)
+                        support_face.margin_right = 10
+                        support_face.margin_left = 10
+                        node.add_face(support_face, column=0, position="branch-top")
+                node.set_style(ns)
+
         print(f"[DEBUG] Rendering to {output_path}")
         t.render(output_path, w=~{width}, units="px", tree_style=ts)
         
@@ -105,27 +92,55 @@ if __name__ == "__main__":
     sys.exit(main())
 PYTHON_SCRIPT
 
-    # Handle outputs with new directory structure
+    # Handle outputs
     if [[ -f "/tmp/outputs/tree.png" ]]; then
       mkdir -p final_phylogenetic_tree_image
-      cp "/tmp/outputs/tree.png" "final_phylogenetic_tree_image/phylogenetic_tree_${INPUT_BASENAME}.png"
-      cp "/tmp/outputs/render.log" "./render_${INPUT_BASENAME}.log"
+      cp "/tmp/outputs/tree.png" "final_phylogenetic_tree_image/phylogenetic_tree_~{basename(input_tree)}.~{image_format}"
+      cp "/tmp/outputs/render.log" "./render_~{basename(input_tree)}.log"
       exit 0
     else
       mkdir -p final_phylogenetic_tree_image
-      echo "Rendering failed" > error_${INPUT_BASENAME}.log
-      cp "/tmp/outputs/render.log" "./render_${INPUT_BASENAME}.log"
+      echo "Rendering failed" > "error_~{basename(input_tree)}.log"
+      cp "/tmp/outputs/render.log" "./render_~{basename(input_tree)}.log"
       exit 1
     fi
   >>>
 
   runtime {
     docker: "gmboowa/ete3-render:1.14"
-    # Remove memory and cpu attributes if not supported by your local backend
+    memory: "2 GB"
+    cpu: 1
+    continueOnReturnCode: true
   }
 
   output {
-    File? final_image = "final_phylogenetic_tree_image/phylogenetic_tree_${basename(input_tree)}.~{image_format}"
-    File render_log = "render_${basename(input_tree)}.log"
+    File final_image = "final_phylogenetic_tree_image/phylogenetic_tree_~{basename(input_tree)}.~{image_format}"
+    File render_log = "render_~{basename(input_tree)}.log"
+  }
+}
+
+workflow TREE_VISUALIZATION {
+  input {
+    Array[File] input_trees
+    Int width = 1200
+    String image_format = "png"
+    Int font_size = 8
+    Boolean show_scale = true
+  }
+
+  scatter (tree in input_trees) {
+    call VALIDATE_AND_RENDER {
+      input:
+        input_tree = tree,
+        width = width,
+        image_format = image_format,
+        font_size = font_size,
+        show_scale = show_scale
+    }
+  }
+
+  output {
+    Array[File] final_images = VALIDATE_AND_RENDER.final_image
+    Array[File] render_logs = VALIDATE_AND_RENDER.render_log
   }
 }
