@@ -98,9 +98,7 @@ This image comes with:
 │   ├── core_core_genes.nwk            # Sample Newick trees
 │   └── accessory_accessory_genes.nwk
 ├── docker/
-│   └── Dockerfile                     # (Optional) Docker image build
-├── LICENSE
-└── README.md
+
 ```
 
 ---
