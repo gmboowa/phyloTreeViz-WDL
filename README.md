@@ -38,7 +38,6 @@ cd phyloTreeViz-WDL
 
 ### 2. Prepare input JSON
 
-Save this as `inputs/example_inputs.json`:
 
 ```json
 {
