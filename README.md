@@ -43,8 +43,8 @@ Save this as `inputs/example_inputs.json`:
 ```json
 {
   "TREE_VISUALIZATION.input_trees": [
-    "test_data/core_core_genes.nwk",
-    "test_data/accessory_accessory_genes.nwk"
+    "~/core_core_genes.nwk",
+    "~/accessory_accessory_genes.nwk"
   ],
   "TREE_VISUALIZATION.width": 1200,
   "TREE_VISUALIZATION.image_format": "png",
