@@ -82,8 +82,6 @@ This image comes with:
 - ETE3
 - All dependencies pre-installed
 
-> You can build your own using the included `Dockerfile` if needed.
-
 ---
 
 ## Repository structure
